@@ -26,7 +26,7 @@ A robust, idempotent Bash utility to remotely reset user passwords across many P
 ## 🚀 Quick Start
 
 ```bash
-https://github.com/developer-ravi06/nx_script.git
+https://github.com/i-ravi/nx_script.git
 cd nx_script-main
 chmod +x pe_user_pass_change.sh
 ./pe_user_pass_change.sh --login_user admin --login_password 'OldPass' --change_user nutanix --change_password 'NewPass123!' --ips 10.0.0.5,10.0.0.6,...
