@@ -27,5 +27,26 @@ A robust, idempotent Bash utility to remotely reset user passwords across many P
 
 ```bash
 https://github.com/developer-ravi06/nx_script.git
-cd nx_script
-chmod +x bin/reset-password.sh
+cd nx_script-main
+chmod +x pe_user_pass_change.sh
+./pe_user_pass_change.sh --login_user admin --login_password 'OldPass' --change_user nutanix --change_password 'NewPass123!' --ips 10.0.0.5,10.0.0.6,...
+
+
+## Script Options
+
+| Flag                     | Default    | Description                                                                                 |
+|--------------------------|------------|---------------------------------------------------------------------------------------------|
+| --login_user \<user\>        | _n/a_      | **Required.** SSH username to connect to each host.                                         |
+| --login_password \<pass\>    | _n/a_      | **Required.** Password for the SSH user.                                                    |
+| --change_user \<user\>       | _n/a_      | **Required.** Local account on target hosts whose password you want to reset.               |
+| --change_password \<pass\>   | _n/a_      | **Required.** New password to assign to the `--change_user`.                                |
+| --ips \<ip1,ip2,…\>          | _n/a_      | **Required.** Comma-separated list of IPv4 addresses to process.                            |
+| --ssh-port \<port\>          | 22         | SSH port on the target hosts.                                                               |
+| --ssh-timeout \<seconds\>    | 10         | Timeout in seconds for the SSH connection attempt.                                          |
+| --max-retries \<count\>      | 1          | Number of ping attempts before giving up on each host.                                      |
+| --backoff \<seconds\>        | 5          | Seconds to wait between ping retries.                                                       |
+| --dry-run                  | off        | Print out every action without actually performing SSH or changing any passwords.           |
+| --verbose                  | off        | Emit extra debug/logging to help trace exactly what’s happening in each step.               |
+| -h, --help                 | —          | Show usage help and exit.                                                                   |
+
+
