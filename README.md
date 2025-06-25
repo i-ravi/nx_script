@@ -26,6 +26,6 @@ A robust, idempotent Bash utility to remotely reset user passwords across many P
 ## 🚀 Quick Start
 
 ```bash
-git clone https://github.com/your-org/password-reset-script.git
-cd password-reset-script
+https://github.com/developer-ravi06/nx_script.git
+cd nx_script
 chmod +x bin/reset-password.sh
