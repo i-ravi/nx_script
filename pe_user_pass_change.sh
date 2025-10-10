@@ -10,11 +10,28 @@ BACKOFF=5
 DRY_RUN=0
 VERBOSE=0
 
-LOG_DIR="logs/$(date +%F)"
+# Logs: create a fresh timestamped directory for every run and a stable "latest" symlink
+BASE_LOG_ROOT="logs"
+TIMESTAMP="$(date +%F_%H%M%S)"
+LOG_DIR="${BASE_LOG_ROOT}/${TIMESTAMP}"
+LATEST_LINK="${BASE_LOG_ROOT}/latest"
+
 LOGFILE="$LOG_DIR/script.log"
 SUCCESS_LOG="$LOG_DIR/success.log"
 FAILURE_LOG="$LOG_DIR/failure.log"
+
 mkdir -p "$LOG_DIR"
+
+# update latest symlink atomically (remove existing file/dir/link, then create symlink)
+if [ -e "$LATEST_LINK" ] || [ -L "$LATEST_LINK" ]; then
+  rm -rf "$LATEST_LINK"
+fi
+ln -s "$TIMESTAMP" "$LATEST_LINK"
+
+# Start empty logs for this run
+: > "$LOGFILE"
+: > "$SUCCESS_LOG"
+: > "$FAILURE_LOG"
 
 total=0
 success_count=0
@@ -63,10 +80,13 @@ done
 # Read values: either literal or @file. Preserve literal content.
 read_values() {
   local input="$1"
+  if [[ -z "${input:-}" ]]; then
+    return 1
+  fi
   if [[ "$input" == @* ]]; then
     local file="${input:1}"
     [ -f "$file" ] || { echo "ERROR: file not found:$file" >&2; return 1; }
-    # output each non-empty line, strip CR
+    # strip CR, remove empty lines
     sed 's/\r$//' "$file" | sed '/^[[:space:]]*$/d'
   else
     printf '%s\n' "$input"
@@ -78,17 +98,27 @@ mapfile -t SSH_PASS_LIST < <(read_values "${RAW_SSH_PASS:-}" 2>/dev/null) || { e
 mapfile -t CHANGE_PASS_LIST < <(read_values "${RAW_CHANGE_PASS:-}" 2>/dev/null) || { echo "Missing or invalid --change_password" >&2; usage; }
 CHANGE_PASS="${CHANGE_PASS_LIST[0]:-}"
 
-# load ips (comma-separated string or @file)
-if [[ "${RAW_IPS:-}" == @* ]]; then
-  mapfile -t ip_array < <(read_values "$RAW_IPS")
-else
-  IFS=',' read -r -a tmp <<< "${RAW_IPS:-}"
+# load ips (comma-separated string and/or file with one-per-line)
+read_ip_values() {
+  local raw="$1"
+  mapfile -t lines < <(read_values "$raw")
   ip_array=()
-  for v in "${tmp[@]}"; do
-    v="${v//[[:space:]]/}"
-    [ -n "$v" ] && ip_array+=("$v")
+  for line in "${lines[@]}"; do
+    # split on commas and whitespace, support entries like "1.2.3.4,5.6.7.8" or separate lines
+    IFS=',' read -r -a parts <<< "$line"
+    for v in "${parts[@]}"; do
+      # trim whitespace
+      v="${v#"${v%%[![:space:]]*}"}"
+      v="${v%"${v##*[![:space:]]}"}"
+      [ -n "$v" ] && ip_array+=("$v")
+    done
   done
+}
+
+if [[ "${RAW_IPS:-}" == "" ]]; then
+  echo "No IPs provided"; usage
 fi
+read_ip_values "$RAW_IPS"
 
 # required checks
 for cmd in sshpass ssh ping sed grep awk; do
@@ -201,13 +231,20 @@ process_host() {
 
 log_message "=== Run started: $(date '+%F %T') ==="
 
+set +e
+
+# Iterate all IPs; disable errexit around each host to allow smooth continue on failure
 for ip in "${ip_array[@]}"; do
-  if process_host "$ip"; then
+  process_host "$ip"
+  rc=$?
+  if [ $rc -eq 0 ]; then
     log_debug "$ip processed successfully"
   else
-    log_debug "$ip processing finished with errors"
+    log_message "⚠️  $ip processing failed with exit code ${rc}; continuing to next host"
+    log_debug "$ip processing finished with errors (exit code $rc)"
   fi
 done
+set -e
 
 success_count=$(wc -l < "$SUCCESS_LOG" 2>/dev/null || echo 0)
 failure_count=$(wc -l < "$FAILURE_LOG" 2>/dev/null || echo 0)
